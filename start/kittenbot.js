@@ -17,7 +17,7 @@ limitations under the License.
 This is a sample Slack bot built with Botkit.
 */
 
-const { Botkit } = require('botkit')
+const { Botkit, BotkitConversation } = require('botkit')
 const { SlackAdapter, SlackEventMiddleware } = require(
   'botbuilder-adapter-slack')
 const { SecretManagerServiceClient } = require('@google-cloud/secret-manager')
@@ -56,12 +56,142 @@ async function kittenbotInit () {
     adapter: adapter
   })
 
+  // Add Kitten Dialog
+  const convo = createKittenDialog(controller);
+  controller.addDialog(convo);
+
   controller.ready(() => {
     controller.hears(['hello', 'hi'], ['message', 'direct_message'],
       async (bot, message) => {
         await bot.reply(message, 'Meow. :smile_cat:')
       })
+    
+    // START: listen for cat emoji delivery
+    controller.hears(['cat','cats','kitten','kittens'],
+      ['message', 'direct_message'],
+      async (bot, message) => {
+        // Don't respond to self
+        if (message.bot_id != message.user){
+          await bot.startConversationInChannel(message.channel, message.user);
+          return await bot.beginDialog('kitten-delivery');
+        }
+    }); 
+    // END: listen for cat emoji delivery
+
   })
 }
+
+// 
+const maxCats = 20
+const catEmojis = [
+      ':smile_cat:',
+      ':smiley_cat:',
+      ':joy_cat:',
+      ':heart_eyes_cat:',
+      ':smirk_cat:',
+      ':kissing_cat:',
+      ':scream_cat:',
+      ':crying_cat_face:',
+      ':pouting_cat:',
+      ':cat:',
+      ':cat2:',
+      ':leopard:',
+      ':lion_face:',
+      ':tiger:',
+      ':tiger2:'
+    ]
+
+function makeCatMessage(numCats){
+  let catMessage = "";
+  for (let i = 0; i < numCats; i++) {
+    // Append a random cat from the list
+    catMessage += catEmojis[Math.floor(Math.random() * catEmojis.length)];
+    }
+  return catMessage;
+}
+
+// Start kitten-delivery convo
+function createKittenDialog(controller) {
+  let convo = new BotkitConversation('kitten-delivery', controller);
+
+  convo.ask('Does someone need a kitten delivery?', [
+     {
+          pattern: 'yes',
+          handler: async(response, convo, bot) => {
+              await convo.gotoThread('yes_kittens');
+          }
+      },
+      {
+          pattern: 'no',
+          handler: async(response, convo, bot) => {
+              await convo.gotoThread('no_kittens');
+          }
+      },
+      {
+          default: true,
+          handler: async(response, convo, bot) => {
+              await convo.gotoThread('default');
+          }
+      },
+
+  ]);
+
+  convo.addQuestion('How many would you like?', [
+                {
+                  pattern: '^[0-9]+?', 
+                  handler: async(response, convo, bot, message) => {
+                    let numCats = parseInt(response);
+                    if(numCats > maxCats){
+                      await convo.gotoThread('too_many');
+                    }
+                    else{
+                      convo.setVar('full_cat_message', makeCatMessage(numCats));
+                      await convo.gotoThread('cat_message');
+                    }
+                  }
+                },
+                { default: true,
+                  handler: async(response, convo, bot, message) => {
+                    if (response){ 
+                      await convo.gotoThread('ask_again');
+                    }
+                    // The response '0' is interpreted as null
+                    else { await convo.gotoThread('zero_kittens');
+                    }
+                  }
+                }
+                ],'num_kittens', 'yes_kittens');
+
+
+  // If numCats is too large, jump to start of the yes_kittens thread
+  convo.addMessage(
+    'Sorry, {{vars.num_kittens}} is too many cats. Pick a smaller number.', 
+    'too_many');
+  convo.addAction('yes_kittens', 'too_many');
+
+  // If response is not a number, jump to start of the yes_kittens thread
+  convo.addMessage('Sorry I didn\'t understand that', 'ask_again');
+  convo.addAction('yes_kittens', 'ask_again');
+
+  // If numCats is 0, send a dog instead
+  convo.addMessage(
+    {'text': 'Sorry to hear you want zero kittens. ' +
+             'Here is a dog, instead. :dog:',
+     'attachments': [
+        {
+          'fallback': 'Chihuahua Bubbles - https://youtu.be/s84dBopsIe4',
+          'text': '<https://youtu.be/s84dBopsIe4|' +
+            'Chihuahua Bubbles>!'
+                  }
+    ]}, 'zero_kittens');
+  
+  // Send cat message
+  convo.addMessage('{{vars.full_cat_message}}', 'cat_message')
+
+  convo.addMessage('Perhaps later.', 'no_kittens');
+
+  return (convo);
+}
+// END: kitten-delivery convo
 
 kittenbotInit()

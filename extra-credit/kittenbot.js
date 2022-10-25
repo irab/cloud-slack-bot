@@ -64,19 +64,19 @@ async function kittenbotInit () {
   controller.ready(() => {
     controller.hears(['hello', 'hi'], ['message', 'direct_message'],
       async (bot, message) => {
-        return bot.reply(message, 'Meow. :smile_cat:')
+        await bot.reply(message, 'Meow. :smile_cat:')
       })
-
+    
     // START: listen for cat emoji delivery
-    controller.hears(['cat', 'cats', 'kitten', 'kittens'],
+    controller.hears(['cat','cats','kitten','kittens'],
       ['message', 'direct_message'],
       async (bot, message) => {
         // Don't respond to self
-        if (message.bot_id !== message.user) {
-          await bot.startConversationInChannel(message.channel, message.user)
-          return bot.beginDialog('kitten-delivery')
+        if (message.bot_id != message.user){
+          await bot.startConversationInChannel(message.channel, message.user);
+          return await bot.beginDialog('kitten-delivery');
         }
-      })
+    })
     // END: listen for cat emoji delivery
 
     // START: slash commands

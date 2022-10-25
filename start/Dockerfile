@@ -18,6 +18,8 @@ FROM node:12-slim
 COPY package.json /src/package.json
 WORKDIR /src
 RUN npm install
+RUN npm uninstall request
+RUN npm install --save --save-exact request@2.88.2
 
 # Bundle app source.
 COPY kittenbot.js /src
